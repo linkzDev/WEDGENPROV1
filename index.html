@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WedGen v1.1 - Linkzwire & Bitterfly Premium Final</title>
+    
+    <!-- Dependencies -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Poppins:wght@300;400;500;600&family=Great+Vibes&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f1f5f9; }
+        .font-serif { font-family: 'Playfair Display', serif; }
+        .font-script { font-family: 'Great Vibes', cursive; }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #d1c4b2; border-radius: 10px; }
+        
+        [data-lucide] { width: 18px; height: 18px; }
+        
+        /* --- ANIMASI --- */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeOutUp {
+            from { opacity: 1; transform: translateY(0); }
+            to { opacity: 0; transform: translateY(-100%); }
+        }
+        @keyframes zoomIn {
+            from { transform: scale(1.1); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        .animate-in { animation: fadeInUp 1s ease-out forwards; }
+        .animate-zoom { animation: zoomIn 1.5s ease-out forwards; }
+        .animate-out-up { animation: fadeOutUp 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+
+        .bg-watercolor {
+            background-image: radial-gradient(#fff 20%, transparent 80%), url('https://www.transparenttextures.com/patterns/p6.png');
+            background-color: #FDFBF7;
+        }
+
+        .text-theme-gold { color: #A68B5B; }
+        .border-theme-gold { border-color: #A68B5B; }
+        .bg-theme-gold { background-color: #A68B5B; }
+    </style>
+</head>
+<body class="overflow-hidden">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        const Icon = ({ name, size = 18, className = "" }) => {
+            useEffect(() => {
+                if (window.lucide) window.lucide.createIcons();
+            }, [name]);
+            return <i data-lucide={name} className={className} style={{ width: size, height: size }}></i>;
+        };
+
+        const FloralDecoration = ({ className = "" }) => (
+            <svg viewBox="0 0 200 200" className={`absolute pointer-events-none z-10 w-32 h-32 ${className}`} fill="none" xmlns="http://www.w3.org/2000/svg">
+                <g opacity="0.6">
+                    <path d="M40 160C60 130 110 120 150 140" stroke="#8A9A5B" strokeWidth="1.5" strokeLinecap="round"/>
+                    <ellipse cx="55" cy="140" rx="14" ry="7" transform="rotate(-35 55 140)" fill="#A9BA9D" />
+                    <ellipse cx="85" cy="128" rx="12" ry="6" transform="rotate(-15 85 128)" fill="#BCCFB0" />
+                    <ellipse cx="115" cy="132" rx="10" ry="5" transform="rotate(20 115 132)" fill="#A9BA9D" />
+                    <path d="M110 130L145 95" stroke="#D1C4B2" strokeWidth="0.8" strokeLinecap="round" />
+                    <circle cx="130" cy="100" r="4.5" fill="#F8C8C8" />
+                    <circle cx="142" cy="108" r="4" fill="#FAD0D0" />
+                    <circle cx="148" cy="94" r="3.5" fill="#F8C8C8" />
+                </g>
+            </svg>
+        );
+
+        const App = () => {
+            const [activeTab, setActiveTab] = useState('profile');
+            const [showPreview, setShowPreview] = useState(false);
+            const [isOpened, setIsOpened] = useState(false); 
+            const [isClosing, setIsClosing] = useState(false);
+            const [musicStarted, setMusicStarted] = useState(false);
+            const [copiedId, setCopiedId] = useState(null);
+            const [guestName, setGuestName] = useState('Tamu Undangan');
+            const [tempGuestInput, setTempGuestInput] = useState('');
+            
+            // MQTT State
+            const [wishes, setWishes] = useState([]);
+            const [rsvpInput, setRsvpInput] = useState({ name: '', wish: '', status: 'Hadir' });
+            const [mqttClient, setMqttClient] = useState(null);
+            
+            const previewRef = useRef(null);
+
+            const [config, setConfig] = useState({
+                youtubeUrl: 'https://www.youtube.com/watch?v=5Eqb_-j3FDA',
+                mqtt: {
+                    broker: 'wss://broker.hivemq.com:8884/mqtt',
+                    topic: 'linkzwire/wedding/bitterfly/v1/wishes'
+                },
+                menuLabels: {
+                    profile: 'MEMPELAI',
+                    event: 'JADWAL & LOKASI',
+                    stories: 'LOVE STORY',
+                    moments: 'GALLERY',
+                    gifts: 'HADIAH',
+                    closing: 'PENUTUP'
+                },
+                quote: "Dan di antara tanda-tanda (kebesaran)-Nya ialah Dia menciptakan pasangan-pasangan untukmu dari jenismu sendiri, agar kamu cenderung dan merasa tenteram kepadanya.",
+                groom: {
+                    fullName: 'Linkzwire',
+                    nickName: 'Linkzwire',
+                    father: 'Bp. Nama Ayah Linkzwire',
+                    mother: 'Ibu Nama Ibu Linkzwire',
+                    photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400',
+                },
+                bride: {
+                    fullName: 'Bitterfly',
+                    nickName: 'Bitterfly',
+                    father: 'Bp. Nama Ayah Bitterfly',
+                    mother: 'Ibu Nama Ibu Bitterfly',
+                    photo: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400',
+                },
+                events: [
+                    { id: 'akad', name: 'Akad Nikah', date: '2026-05-20', startTime: '08:00', endTime: '10:00', locationName: 'Masjid Raya Al-Mashun', address: 'Jl. Mahkamah No.1, Medan', googleMaps: 'https://maps.app.goo.gl/xxx' },
+                    { id: 'resepsi', name: 'Resepsi', date: '2026-05-20', startTime: '11:00', endTime: '17:00', locationName: 'Hotel Santika Premiere', address: 'Jl. Kapten Maulana Lubis No.7', googleMaps: 'https://maps.app.goo.gl/yyy' }
+                ],
+                stories: [
+                    { id: 1, year: '2020', title: 'Pertama Bertemu', content: 'Dipertemukan dalam satu organisasi kampus yang sama di Medan.' },
+                    { id: 2, year: '2023', title: 'Menjalin Komitmen', content: 'Setelah mengenal satu sama lain, kami memutuskan untuk melangkah ke arah yang lebih serius.' }
+                ],
+                moments: [
+                    'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=600',
+                    'https://images.unsplash.com/photo-1519741497674-611481863552?w=600',
+                    'https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=600'
+                ],
+                gifts: [
+                    { id: 1, bank: 'Bank BCA', account: '1234567890', owner: 'Linkzwire' },
+                    { id: 2, bank: 'Bank Mandiri', account: '0987654321', owner: 'Bitterfly' }
+                ],
+                thankYou: "Merupakan suatu kehormatan dan kebahagiaan bagi kami apabila Bapak/Ibu/Saudara/i berkenan hadir untuk memberikan doa restu kepada kami."
+            });
+
+            // MQTT Connection logic
+            useEffect(() => {
+                const client = mqtt.connect(config.mqtt.broker);
+                client.on('connect', () => {
+                    client.subscribe(config.mqtt.topic);
+                });
+                client.on('message', (topic, message) => {
+                    try {
+                        const data = JSON.parse(message.toString());
+                        // Add unique check for real-time list
+                        setWishes(prev => [data, ...prev].filter((v,i,a)=>a.findIndex(t=>(t.id === v.id))===i).slice(0, 50));
+                    } catch (e) { console.error("MQTT Error", e); }
+                });
+                setMqttClient(client);
+                return () => client.end();
+            }, [config.mqtt.broker, config.mqtt.topic]);
+
+            useEffect(() => {
+                const params = new URLSearchParams(window.location.search);
+                const name = params.get('to');
+                if (name) {
+                    setGuestName(name);
+                    setRsvpInput(prev => ({ ...prev, name }));
+                }
+            }, []);
+
+            const getYouTubeID = (url) => {
+                const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+                const match = url.match(regExp);
+                return (match && match[2].length === 11) ? match[2] : null;
+            };
+
+            const youtubeId = getYouTubeID(config.youtubeUrl);
+
+            const handleOpen = () => {
+                setMusicStarted(true);
+                setIsClosing(true);
+                setTimeout(() => {
+                    setIsOpened(true);
+                    setIsClosing(false);
+                }, 800);
+            };
+
+            const handleSendRSVP = () => {
+                if (!rsvpInput.name || !rsvpInput.wish) return;
+                const payload = {
+                    ...rsvpInput,
+                    timestamp: Date.now(),
+                    id: Math.random().toString(36).substr(2, 9)
+                };
+                if (mqttClient) {
+                    mqttClient.publish(config.mqtt.topic, JSON.stringify(payload), { qos: 1, retain: true });
+                    setRsvpInput(prev => ({ ...prev, wish: '' }));
+                }
+            };
+
+            const updateConfig = (section, field, value) => setConfig(prev => ({ ...prev, [section]: { ...prev[section], [field]: value } }));
+
+            const handleCopy = (id, text) => {
+                const el = document.createElement('textarea');
+                el.value = text;
+                document.body.appendChild(el);
+                el.select();
+                document.execCommand('copy');
+                document.body.removeChild(el);
+                setCopiedId(id);
+                setTimeout(() => setCopiedId(null), 2000);
+            };
+
+            const exportToHTML = () => {
+                const innerContent = previewRef.current.innerHTML;
+                const ytId = getYouTubeID(config.youtubeUrl);
+                const htmlParts = [
+                    '<!DOCTYPE html>',
+                    '<html lang="id">',
+                    '<head>',
+                    '<meta charset="UTF-8">',
+                    '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
+                    '<title>Undangan ' + config.groom.nickName + ' & ' + config.bride.nickName + '</title>',
+                    '<script src="https://cdn.tailwindcss.com"><\/script>',
+                    '<script src="https://unpkg.com/lucide@latest"><\/script>',
+                    '<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"><\/script>',
+                    '<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Poppins:wght@300;400;500;600&family=Great+Vibes&display=swap" rel="stylesheet">',
+                    '<style>body { font-family: "Poppins", sans-serif; background: #FDFBF7; scroll-behavior: smooth; overflow-x: hidden; } .font-serif { font-family: "Playfair Display", serif; } .font-script { font-family: "Great Vibes", cursive; } [data-lucide] { width: 18px; height: 18px; } .animate-in { animation: fadeInUp 1s ease-out forwards; } @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } } @keyframes fadeOutUp { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-100%); } } .animate-out-up { animation: fadeOutUp 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards; }</style>',
+                    '</head>',
+                    '<body>',
+                    '<div id="overlay" class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-cover bg-center text-white p-8 text-center" style="background-image: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url(\'' + config.moments[0] + '\');">',
+                    '<div>',
+                    '<p class="text-[10px] uppercase tracking-[0.5em] mb-4 opacity-80">The Wedding Of</p>',
+                    '<h1 class="text-5xl font-script mb-8">' + config.groom.nickName + ' & ' + config.bride.nickName + '</h1>',
+                    '<div class="mb-10 animate-in">',
+                    '<p class="text-[10px] opacity-70 mb-2 uppercase tracking-widest">Kepada Bapak/Ibu/Saudara/i:</p>',
+                    '<h3 id="guest-target" class="text-xl font-serif italic font-bold">Tamu Undangan</h3>',
+                    '</div>',
+                    '<button id="openBtn" class="bg-white text-slate-900 px-10 py-4 rounded-full text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-3 shadow-2xl mx-auto"><i data-lucide="mail"></i> BUKA UNDANGAN</button>',
+                    '</div>',
+                    '</div>',
+                    (ytId ? '<div id="music-container" style="position:fixed; top:-999px; left:-999px;"></div>' : ''),
+                    '<div class="max-w-[480px] mx-auto bg-white shadow-2xl min-h-screen relative">',
+                    innerContent,
+                    '</div>',
+                    '<script>',
+                    'lucide.createIcons();',
+                    'const params = new URLSearchParams(window.location.search);',
+                    'const to = params.get("to");',
+                    'if(to) { document.getElementById("guest-target").innerText = to; document.getElementById("in-name").value = to; }',
+                    'function handleCopy(text) { const el = document.createElement("textarea"); el.value = text; document.body.appendChild(el); el.select(); document.execCommand("copy"); document.body.removeChild(el); alert("Nomor rekening berhasil disalin!"); }',
+                    'const client = mqtt.connect("' + config.mqtt.broker + '");',
+                    'client.on("connect", () => { client.subscribe("' + config.mqtt.topic + '"); });',
+                    'client.on("message", (topic, message) => {',
+                    '  const data = JSON.parse(message.toString());',
+                    '  const list = document.getElementById("wishes-list");',
+                    '  const item = document.createElement("div");',
+                    '  item.className = "p-4 bg-white rounded-2xl shadow-sm border border-slate-100 flex gap-4 animate-in";',
+                    '  item.innerHTML = `<div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-bold shrink-0">${data.name.charAt(0)}</div><div class="flex-1"><p class="font-bold text-[11px] text-slate-800">${data.name}</p><p class="text-[10px] text-slate-500 italic">"${data.wish}"</p></div>`;',
+                    '  list.prepend(item);',
+                    '});',
+                    'window.sendRSVP = function() {',
+                    '  const n = document.getElementById("in-name").value;',
+                    '  const w = document.getElementById("in-wish").value;',
+                    '  const s = document.getElementById("in-status-val").value;',
+                    '  if(!n || !w) return;',
+                    '  client.publish("' + config.mqtt.topic + '", JSON.stringify({name:n, wish:w, status:s, id:Math.random().toString(36).substr(2,9)}), {qos:1, retain:true});',
+                    '  document.getElementById("in-wish").value = "";',
+                    '};',
+                    'document.getElementById("openBtn").onclick = function() {',
+                    '  const o=document.getElementById("overlay"); o.classList.add("animate-out-up"); setTimeout(()=>o.style.display="none",800);',
+                    (ytId ? '  document.getElementById("music-container").innerHTML = \'<iframe width="1" height="1" src="https://www.youtube.com/embed/' + ytId + '?autoplay=1&loop=1&playlist=' + ytId + '&enablejsapi=1" frameborder="0" allow="autoplay; encrypted-media"></iframe>\';' : ''),
+                    '};',
+                    '<\/script>',
+                    '</body>',
+                    '</html>'
+                ];
+
+                const fullHTML = htmlParts.join('\n');
+                const blob = new Blob([fullHTML], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'index.html'; 
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            };
+
+            return (
+                <div className="flex flex-col lg:flex-row min-h-screen h-screen overflow-hidden">
+                    {/* SIDEBAR NAVIGATION */}
+                    <aside className="w-full lg:w-64 bg-[#0F172A] text-white p-6 shrink-0 z-20 flex flex-col border-r border-slate-800">
+                        <div className="flex items-center gap-3 mb-8">
+                            <div className="bg-amber-600 p-2 rounded-lg shadow-lg"><Icon name="heart" /></div>
+                            <h1 className="font-bold text-xl tracking-tight">WedGen <span className="text-amber-500 font-light text-sm italic">Pro</span></h1>
+                        </div>
+                        
+                        <nav className="flex-1 space-y-1 overflow-y-auto custom-scrollbar pr-2">
+                            {[
+                                { id: 'profile', icon: 'user', label: config.menuLabels.profile },
+                                { id: 'event', icon: 'calendar', label: config.menuLabels.event },
+                                { id: 'stories', icon: 'book-open', label: config.menuLabels.stories },
+                                { id: 'moments', icon: 'camera', label: config.menuLabels.moments },
+                                { id: 'gifts', icon: 'gift', label: config.menuLabels.gifts },
+                                { id: 'closing', icon: 'check-circle', label: config.menuLabels.closing },
+                                { id: 'link-tamu', icon: 'link', label: 'LINK TAMU' },
+                                { id: 'mqtt-settings', icon: 'message-square', label: 'MQTT SETTINGS' },
+                                { id: 'menu-settings', icon: 'settings', label: 'EDIT MENU' }
+                            ].map(item => (
+                                <button key={item.id} onClick={() => { setActiveTab(item.id); setShowPreview(false); }} 
+                                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${activeTab === item.id ? 'bg-[#E67E22] text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}`}>
+                                    <Icon name={item.icon} />
+                                    <span className="text-xs font-bold uppercase tracking-wider">{item.label}</span>
+                                </button>
+                            ))}
+                        </nav>
+
+                        <div className="mt-6 pt-6 border-t border-slate-800 space-y-3">
+                            <button onClick={() => {setShowPreview(!showPreview); setIsOpened(false); setMusicStarted(false);}} className="w-full lg:hidden bg-slate-800 py-3 rounded-xl flex items-center justify-center gap-2 text-xs font-bold border border-slate-700">
+                                <Icon name={showPreview ? 'edit-3' : 'eye'} /> {showPreview ? 'EDIT DATA' : 'PREVIEW MOBILE'}
+                            </button>
+                            <button onClick={exportToHTML} className="w-full bg-amber-700 hover:bg-amber-800 py-3 rounded-xl font-bold flex items-center justify-center gap-2 text-xs transition-transform active:scale-95 text-white uppercase tracking-widest">
+                                <Icon name="download" /> Export HTML
+                            </button>
+                        </div>
+                    </aside>
+
+                    {/* MAIN EDITOR AREA */}
+                    <main className={`flex-1 p-4 lg:p-8 overflow-y-auto bg-slate-50 ${showPreview ? 'hidden lg:block' : 'block'}`}>
+                        <div className="max-w-3xl mx-auto bg-white rounded-[2.5rem] shadow-xl border border-slate-200 p-6 lg:p-10 min-h-[85vh]">
+                            
+                            {/* TAB: MQTT SETTINGS */}
+                            {activeTab === 'mqtt-settings' && (
+                                <div className="space-y-8 animate-in">
+                                    <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3"><Icon name="message-square" className="text-amber-600" size={24}/> Pengaturan MQTT RSVP</h2>
+                                    <div className="p-8 bg-slate-50 border rounded-[2rem] space-y-6">
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase block ml-1 mb-2">Broker URL (WebSocket)</label>
+                                            <input className="w-full p-4 border border-slate-200 rounded-2xl text-sm font-mono" value={config.mqtt.broker} onChange={e => updateConfig('mqtt', 'broker', e.target.value)} />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase block ml-1 mb-2">MQTT Topic</label>
+                                            <input className="w-full p-4 border border-slate-200 rounded-2xl text-sm font-mono" value={config.mqtt.topic} onChange={e => updateConfig('mqtt', 'topic', e.target.value)} />
+                                        </div>
+                                        <div className="bg-amber-50 p-4 rounded-xl flex gap-3 items-start border border-amber-100">
+                                            <Icon name="info" className="text-amber-600 shrink-0" size={20} />
+                                            <p className="text-[11px] text-amber-800 leading-relaxed italic">Catatan: MQTT digunakan agar Ucapan & RSVP tamu tersinkronisasi secara real-time antar perangkat tamu. Kami menggunakan broker publik HiveMQ sebagai default.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'profile' && (
+                                <div className="space-y-8 animate-in">
+                                    <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3"><Icon name="user" className="text-amber-600" size={24}/> Data Mempelai</h2>
+                                    <div className="grid md:grid-cols-2 gap-8">
+                                        {['groom', 'bride'].map(type => (
+                                            <div key={type} className="space-y-5 p-6 bg-slate-50 rounded-[2rem] border border-slate-100 shadow-sm">
+                                                <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">{type === 'groom' ? 'Pria' : 'Wanita'}</p>
+                                                <div className="flex flex-col items-center gap-4">
+                                                    <img src={config[type].photo} className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-md" />
+                                                    <input className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] text-center" value={config[type].photo} onChange={e => updateConfig(type, 'photo', e.target.value)} />
+                                                </div>
+                                                <input className="w-full p-3 border border-slate-200 rounded-xl text-sm" placeholder="Nama Lengkap" value={config[type].fullName} onChange={e => updateConfig(type, 'fullName', e.target.value)} />
+                                                <input className="w-full p-3 border border-slate-200 rounded-xl text-sm" placeholder="Panggilan" value={config[type].nickName} onChange={e => updateConfig(type, 'nickName', e.target.value)} />
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <input className="w-full p-3 border border-slate-200 rounded-xl text-xs" placeholder="Ayah" value={config[type].father} onChange={e => updateConfig(type, 'father', e.target.value)} />
+                                                    <input className="w-full p-3 border border-slate-200 rounded-xl text-xs" placeholder="Ibu" value={config[type].mother} onChange={e => updateConfig(type, 'mother', e.target.value)} />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <textarea className="w-full p-4 border border-slate-200 rounded-2xl text-sm h-24 italic" placeholder="Quote Undangan" value={config.quote} onChange={e => setConfig({...config, quote: e.target.value})} />
+                                </div>
+                            )}
+
+                            {activeTab === 'event' && (
+                                <div className="space-y-8 animate-in">
+                                    <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3"><Icon name="calendar" className="text-amber-600" size={24}/> Jadwal & Lokasi</h2>
+                                    {config.events.map((evt, idx) => (
+                                        <div key={idx} className="p-8 border border-slate-100 rounded-[2rem] bg-slate-50 space-y-4 shadow-sm mb-6">
+                                            <input className="font-bold text-amber-600 bg-transparent text-lg uppercase outline-none" value={evt.name} onChange={e => {
+                                                const newEvents = [...config.events]; newEvents[idx].name = e.target.value; setConfig({...config, events: newEvents});
+                                            }} />
+                                            <div className="grid grid-cols-3 gap-3">
+                                                <input type="date" className="p-3 border rounded-xl text-xs" value={evt.date} onChange={e => {
+                                                    const newEvents = [...config.events]; newEvents[idx].date = e.target.value; setConfig({...config, events: newEvents});
+                                                }} />
+                                                <input type="time" className="p-3 border rounded-xl text-xs" value={evt.startTime} onChange={e => {
+                                                    const newEvents = [...config.events]; newEvents[idx].startTime = e.target.value; setConfig({...config, events: newEvents});
+                                                }} />
+                                                <input type="time" className="p-3 border rounded-xl text-xs" value={evt.endTime} onChange={e => {
+                                                    const newEvents = [...config.events]; newEvents[idx].endTime = e.target.value; setConfig({...config, events: newEvents});
+                                                }} />
+                                            </div>
+                                            <input className="w-full p-3 border border-slate-200 rounded-xl text-sm" placeholder="Nama Tempat" value={evt.locationName} onChange={e => {
+                                                const newEvents = [...config.events]; newEvents[idx].locationName = e.target.value; setConfig({...config, events: newEvents});
+                                            }} />
+                                            <textarea className="w-full p-3 border border-slate-200 rounded-xl text-sm h-24" placeholder="Alamat" value={evt.address} onChange={e => {
+                                                const newEvents = [...config.events]; newEvents[idx].address = e.target.value; setConfig({...config, events: newEvents});
+                                            }} />
+                                            <div className="bg-white p-4 rounded-xl border border-slate-200">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Link Google Maps</label>
+                                                <input className="w-full p-2 border border-slate-100 rounded text-xs text-blue-600 font-mono" placeholder="URL Google Maps" value={evt.googleMaps} onChange={e => {
+                                                    const newEvents = [...config.events]; newEvents[idx].googleMaps = e.target.value; setConfig({...config, events: newEvents});
+                                                }} />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {activeTab === 'stories' && (
+                                <div className="space-y-8 animate-in">
+                                    <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3"><Icon name="book-open" className="text-amber-600" size={24}/> Love Story Editor</h2>
+                                    {config.stories.map((s, idx) => (
+                                        <div key={idx} className="p-6 border border-slate-100 rounded-[2rem] bg-slate-50 space-y-3 relative group mb-4">
+                                            <button onClick={() => setConfig({...config, stories: config.stories.filter((_, i) => i !== idx)})} className="absolute top-4 right-4 text-red-400 opacity-0 group-hover:opacity-100 transition text-xs font-bold font-mono">Hapus</button>
+                                            <div className="grid grid-cols-4 gap-3">
+                                                <input className="p-3 border border-slate-200 rounded-xl text-sm font-bold text-amber-600" placeholder="Tahun" value={s.year} onChange={e => {
+                                                    const ns = [...config.stories]; ns[idx].year = e.target.value; setConfig({...config, stories: ns});
+                                                }} />
+                                                <input className="col-span-3 p-3 border border-slate-200 rounded-xl text-sm font-bold" placeholder="Judul" value={s.title} onChange={e => {
+                                                    const ns = [...config.stories]; ns[idx].title = e.target.value; setConfig({...config, stories: ns});
+                                                }} />
+                                            </div>
+                                            <textarea className="w-full p-3 border border-slate-200 rounded-xl text-xs h-24" placeholder="Isi cerita..." value={s.content} onChange={e => {
+                                                const ns = [...config.stories]; ns[idx].content = e.target.value; setConfig({...config, stories: ns});
+                                            }} />
+                                        </div>
+                                    ))}
+                                    <button onClick={() => setConfig({...config, stories: [...config.stories, {id: Date.now(), year: '202X', title: 'Baru', content: ''}]})} className="w-full py-4 border-2 border-dashed border-slate-300 rounded-3xl text-slate-400">+ TAMBAH CERITA</button>
+                                </div>
+                            )}
+
+                            {activeTab === 'moments' && (
+                                <div className="space-y-8 animate-in">
+                                    <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3"><Icon name="camera" className="text-amber-600" size={24}/> Gallery Editor</h2>
+                                    <div className="grid grid-cols-1 gap-4">
+                                        {config.moments.map((m, idx) => (
+                                            <div key={idx} className="p-4 border border-slate-100 rounded-2xl bg-slate-50 flex items-center gap-4 relative group">
+                                                <img src={m} className="w-20 h-20 object-cover rounded-lg border-2 border-white shadow-sm" />
+                                                <div className="flex-1 space-y-2">
+                                                    <label className="text-[10px] font-bold text-slate-400 uppercase">URL Gambar</label>
+                                                    <input className="w-full p-2 border border-slate-200 rounded-lg text-xs font-mono" value={m} onChange={e => {
+                                                        const nm = [...config.moments]; nm[idx] = e.target.value; setConfig({...config, moments: nm});
+                                                    }} />
+                                                </div>
+                                                <button onClick={() => setConfig({...config, moments: config.moments.filter((_, i) => i !== idx)})} className="text-red-400 hover:text-red-600 transition">
+                                                    <Icon name="trash-2" size={20} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        <button onClick={() => setConfig({...config, moments: [...config.moments, 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=600']})} className="w-full py-4 border-2 border-dashed border-slate-300 rounded-3xl text-slate-400 font-bold text-xs uppercase tracking-widest">+ TAMBAH FOTO</button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'gifts' && (
+                                <div className="space-y-8 animate-in">
+                                    <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3"><Icon name="gift" className="text-amber-600" size={24}/> Hadiah Editor</h2>
+                                    <div className="space-y-4">
+                                        {config.gifts.map((g, idx) => (
+                                            <div key={idx} className="p-6 border border-slate-100 rounded-[2rem] bg-slate-50 space-y-4 relative group">
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="col-span-2">
+                                                        <label className="text-[10px] font-bold text-slate-400 uppercase block ml-1 mb-1">Nama Bank / E-Wallet</label>
+                                                        <input className="w-full p-3 border border-slate-200 rounded-xl text-sm font-bold" value={g.bank} onChange={e => {
+                                                            const ng = [...config.gifts]; ng[idx].bank = e.target.value; setConfig({...config, gifts: ng});
+                                                        }} />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1">Nomor Rekening</label>
+                                                        <input className="w-full p-3 border border-slate-200 rounded-xl text-sm font-mono" value={g.account} onChange={e => {
+                                                            const ng = [...config.gifts]; ng[idx].account = e.target.value; setConfig({...config, gifts: ng});
+                                                        }} />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1">Atas Nama</label>
+                                                        <input className="w-full p-3 border border-slate-200 rounded-xl text-sm" value={g.owner} onChange={e => {
+                                                            const ng = [...config.gifts]; ng[idx].owner = e.target.value; setConfig({...config, gifts: ng});
+                                                        }} />
+                                                    </div>
+                                                </div>
+                                                <button onClick={() => setConfig({...config, gifts: config.gifts.filter((_, i) => i !== idx)})} className="absolute top-4 right-4 text-red-400 hover:text-red-600 transition">
+                                                    <Icon name="trash-2" size={18} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        <button onClick={() => setConfig({...config, gifts: [...config.gifts, {id: Date.now(), bank: 'BCA', account: '', owner: ''}]})} className="w-full py-4 border-2 border-dashed border-slate-300 rounded-3xl text-slate-400 font-bold text-xs uppercase tracking-widest">+ TAMBAH REKENING</button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'link-tamu' && (
+                                <div className="space-y-8 animate-in">
+                                    <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3"><Icon name="link" className="text-amber-600" size={24}/> Link Generator Tamu</h2>
+                                    <div className="p-8 bg-slate-50 border rounded-[2rem] border-slate-100 space-y-6">
+                                        <input className="w-full p-4 border border-slate-200 rounded-2xl text-sm focus:ring-2 ring-amber-100 outline-none" placeholder="Nama Tamu Undangan" value={tempGuestInput} onChange={e => { setTempGuestInput(e.target.value); setGuestName(e.target.value || 'Tamu Undangan'); }} />
+                                        <button onClick={() => handleCopy('lk', window.location.origin + window.location.pathname + '?to=' + encodeURIComponent(tempGuestInput || 'Tamu Undangan'))} className="w-full py-4 bg-amber-600 text-white rounded-2xl font-bold text-sm hover:bg-amber-700 transition flex items-center justify-center gap-2 shadow-lg">
+                                            <Icon name="copy" size={18} /> {copiedId === 'lk' ? 'LINK TERSALIN!' : 'SALIN LINK LENGKAP'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'menu-settings' && (
+                                <div className="space-y-8 animate-in">
+                                    <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3"><Icon name="settings" className="text-amber-600" size={24}/> Pengaturan & Musik</h2>
+                                    <div className="bg-amber-50 p-8 rounded-[2rem] border border-amber-100 mb-8 space-y-4">
+                                        <input className="w-full p-3 border border-amber-200 rounded-xl text-sm font-mono text-blue-600 bg-white shadow-sm" value={config.youtubeUrl} onChange={e => setConfig({...config, youtubeUrl: e.target.value})} placeholder="YouTube URL" />
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-8 rounded-[2rem] border border-slate-100 shadow-sm">
+                                        {Object.keys(config.menuLabels).map(key => (
+                                            <input key={key} className="w-full p-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:ring-2 ring-amber-100 outline-none uppercase" value={config.menuLabels[key]} onChange={e => setConfig({...config, menuLabels: {...config.menuLabels, [key]: e.target.value.toUpperCase()}})} />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'closing' && (
+                                <div className="space-y-8 animate-in">
+                                    <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3"><Icon name="check-circle" className="text-amber-600" size={24}/> Penutup</h2>
+                                    <textarea className="w-full p-6 border border-slate-200 rounded-3xl text-sm h-48 focus:ring-2 ring-amber-100 outline-none shadow-sm" value={config.thankYou} onChange={e => setConfig({...config, thankYou: e.target.value})}></textarea>
+                                </div>
+                            )}
+                        </div>
+                    </main>
+
+                    {/* MOBILE SIMULATOR */}
+                    <section className={`lg:w-[450px] bg-slate-200 p-4 shrink-0 flex items-center justify-center border-l shadow-inner relative ${showPreview ? 'fixed inset-0 z-50' : 'hidden lg:flex'}`}>
+                        <div className="relative w-full max-w-[320px] h-[640px] bg-[#FDFBF7] rounded-[2.8rem] border-[10px] border-slate-800 shadow-2xl overflow-hidden flex flex-col scale-95 xl:scale-100">
+                            {!isOpened && (
+                                <div className={`absolute inset-0 z-[60] flex flex-col items-center justify-center bg-cover bg-center text-white p-8 text-center transition-all duration-1000 ${isClosing ? 'animate-out-up' : ''}`} style={{ backgroundImage: `linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url(${config.moments[0]})` }}>
+                                    <div className="animate-zoom text-center w-full">
+                                        <p className="text-[9px] uppercase tracking-[0.6em] mb-6 opacity-90 font-medium">The Wedding Of</p>
+                                        <h1 className="text-4xl font-script mb-12">{config.groom.nickName} & {config.bride.nickName}</h1>
+                                        <div className="mb-10 animate-in"><p className="text-[9px] opacity-70 mb-1 uppercase tracking-widest font-bold">Kepada Yth:</p><h3 className="text-lg font-serif italic font-bold tracking-wide">{guestName}</h3></div>
+                                        <button onClick={handleOpen} className="bg-white text-slate-900 px-10 py-4 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-3 shadow-2xl mx-auto hover:bg-slate-100 transition active:scale-95"><Icon name="mail-open" size={16} /> BUKA UNDANGAN</button>
+                                    </div>
+                                </div>
+                            )}
+                            <div className="h-6 w-full bg-slate-800 flex justify-center items-center relative z-10"><div className="w-16 h-3 bg-slate-900 rounded-b-xl"></div></div>
+                            <div ref={previewRef} className="flex-1 overflow-y-auto bg-watercolor custom-scrollbar scroll-smooth relative">
+                                {musicStarted && youtubeId && <iframe width="1" height="1" src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&loop=1&playlist=${youtubeId}&enablejsapi=1`} frameBorder="0" allow="autoplay; encrypted-media" className="absolute opacity-0"></iframe>}
+                                
+                                <div className="py-24 px-8 text-center relative overflow-hidden">
+                                    <FloralDecoration className="top-0 left-0 -rotate-90 origin-top-left" /><FloralDecoration className="bottom-0 right-0 rotate-90 origin-bottom-right" />
+                                    <div className="animate-in"><p className="text-[9px] uppercase tracking-[0.5em] text-theme-gold mb-8 font-medium">The Wedding Celebration Of</p><h1 className="text-4xl font-serif text-slate-800 mb-3 tracking-tighter">{config.groom.nickName}</h1><div className="text-4xl font-script text-theme-gold my-4">&</div><h1 className="text-4xl font-serif text-slate-800 mb-10 tracking-tighter">{config.bride.nickName}</h1><p className="text-[12px] font-serif text-slate-500 tracking-[0.2em] font-bold italic">{new Date(config.events[0].date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p></div>
+                                </div>
+
+                                <div className="py-24 px-10 text-center bg-white/30 backdrop-blur-sm border-y border-theme-gold/10">
+                                    <Icon name="quote" className="mx-auto text-theme-gold/20 mb-6" size={32} />
+                                    <p className="text-[11px] text-slate-500 italic leading-relaxed font-light font-serif animate-in">"{config.quote}"</p>
+                                </div>
+
+                                <div className="py-24 px-8 text-center relative">
+                                    <h3 className="font-serif text-2xl mb-16 text-slate-800 tracking-wide uppercase italic tracking-widest">{config.menuLabels.profile}</h3>
+                                    {[ { u: config.groom, role: 'Putra dari' }, { u: config.bride, role: 'Putri dari' } ].map((item, i) => (
+                                        <div key={i} className="mb-24 last:mb-0 animate-in">
+                                            <div className="relative inline-block mb-8"><div className="absolute inset-0 border border-theme-gold rounded-full -m-2.5 opacity-40"></div><img src={item.u.photo} className="w-36 h-36 mx-auto rounded-full object-cover border-4 border-white shadow-xl relative z-10" /></div>
+                                            <p className="font-serif text-2xl text-slate-800 mb-3 tracking-tight">{item.u.fullName}</p>
+                                            <p className="text-[9px] text-theme-gold font-bold uppercase tracking-[0.3em] mb-3">{item.role}</p>
+                                            <p className="text-xs text-slate-500 font-medium px-8 leading-loose italic">{item.u.father} & {item.u.mother}</p>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="py-24 px-6 bg-white/50 relative overflow-hidden backdrop-blur-sm border-y border-theme-gold/5">
+                                    <FloralDecoration className="top-0 right-0 rotate-90 scale-75" />
+                                    <h3 className="font-serif text-2xl mb-12 text-center text-slate-800 tracking-wide uppercase italic tracking-widest">{config.menuLabels.event}</h3>
+                                    {config.events.map((e, idx) => (
+                                        <div key={idx} className="mb-16 text-center">
+                                            <div className="text-theme-gold font-script text-4xl mb-4">{e.name}</div>
+                                            <div className="bg-white/80 py-8 px-4 rounded-[2.5rem] border border-theme-gold/10 shadow-sm mb-6">
+                                                <p className="text-sm font-bold text-slate-800 mb-1 uppercase tracking-widest">{new Date(e.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+                                                <p className="text-[10px] text-theme-gold font-medium">{e.startTime} - {e.endTime} WIB</p>
+                                            </div>
+                                            <p className="text-xs font-bold text-slate-800 mb-2">{e.locationName}</p>
+                                            <p className="text-[9px] text-slate-400 px-10 italic mb-6 leading-relaxed">{e.address}</p>
+                                            <a href={e.googleMaps} target="_blank" className="inline-block border border-theme-gold text-theme-gold px-8 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-sm">Peta Lokasi</a>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="py-24 px-8 text-center bg-white relative">
+                                    <h3 className="font-serif text-2xl mb-16 text-slate-800 tracking-wide uppercase italic tracking-widest">{config.menuLabels.stories}</h3>
+                                    <div className="space-y-12 relative before:content-[''] before:absolute before:left-1/2 before:top-0 before:bottom-0 before:w-[1px] before:bg-theme-gold/20">
+                                        {config.stories.map((s, idx) => (
+                                            <div key={idx} className="relative z-10 animate-in">
+                                                <div className="w-10 h-10 bg-white border border-theme-gold/20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm font-bold text-[10px] text-theme-gold italic">{s.year}</div>
+                                                <h4 className="text-sm font-bold text-slate-800 mb-3 tracking-wide">{s.title}</h4>
+                                                <p className="text-[10px] text-slate-400 px-6 font-light leading-relaxed">{s.content}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="py-24 px-4 bg-[#fcfaf7]">
+                                    <h3 className="font-serif text-2xl text-center mb-12 text-slate-800 uppercase italic tracking-widest">{config.menuLabels.moments}</h3>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {config.moments.map((m, idx) => (
+                                            <div key={idx} className="overflow-hidden rounded-xl shadow-sm border border-white h-48">
+                                                <img src={m} className="w-full h-full object-cover grayscale-[10%] hover:grayscale-0 transition-all duration-1000" />
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="py-24 px-8 text-center bg-white">
+                                    <Icon name="gift" size={36} className="mx-auto text-theme-gold mb-6" />
+                                    <h3 className="font-serif text-2xl mb-6 text-slate-800 uppercase italic tracking-widest">{config.menuLabels.gifts}</h3>
+                                    <div className="space-y-6">
+                                        {config.gifts.map((g, idx) => (
+                                            <div key={idx} className="p-10 border border-theme-gold/10 rounded-[2rem] bg-[#fdfbf7] shadow-sm animate-in">
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-4 tracking-widest">{g.bank}</p>
+                                                <p className="text-2xl font-mono font-bold text-slate-800 mb-2 tracking-tighter italic">{g.account}</p>
+                                                <p className="text-[9px] text-slate-400 uppercase tracking-widest mb-8">A/N {g.owner}</p>
+                                                <button onClick={() => handleCopy(g.id, g.account)} className="w-full py-3 bg-white border border-theme-gold/20 text-theme-gold rounded-full text-[10px] font-bold uppercase tracking-widest shadow-sm">{copiedId === g.id ? 'TERSYALIN' : 'Salin No. Rekening'}</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* MQTT RSVP SECTION (Berdasarkan Gambar) */}
+                                <div className="py-20 px-6 bg-white/50 backdrop-blur-sm border-y border-theme-gold/10 relative">
+                                    <h3 className="font-serif text-3xl mb-2 text-center text-slate-800 italic uppercase">Ucapan & RSVP</h3>
+                                    <p className="text-[10px] text-slate-500 text-center mb-8">Berikan doa dan ucapan terbaik untuk kami.</p>
+                                    
+                                    <div className="p-4 bg-white rounded-2xl shadow-xl border border-slate-100 space-y-4 mb-10">
+                                        <input id="in-name" className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none" placeholder="Nama" value={rsvpInput.name} onChange={e => setRsvpInput({...rsvpInput, name: e.target.value})} />
+                                        <textarea id="in-wish" className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 h-24 outline-none" placeholder="Ucapan" value={rsvpInput.wish} onChange={e => setRsvpInput({...rsvpInput, wish: e.target.value})}></textarea>
+                                        
+                                        <div className="flex gap-2">
+                                            <button onClick={() => setRsvpInput({...rsvpInput, status: 'Hadir'})} className={`flex-1 py-3 rounded-full text-[10px] font-bold flex items-center justify-center gap-2 border transition ${rsvpInput.status === 'Hadir' ? 'bg-slate-800 text-white border-slate-800' : 'bg-slate-100 text-slate-500 border-slate-200'}`}><Icon name="check-circle" size={14}/> Hadir</button>
+                                            <button onClick={() => setRsvpInput({...rsvpInput, status: 'Tidak Hadir'})} className={`flex-1 py-3 rounded-full text-[10px] font-bold flex items-center justify-center gap-2 border transition ${rsvpInput.status === 'Tidak Hadir' ? 'bg-slate-800 text-white border-slate-800' : 'bg-slate-100 text-slate-500 border-slate-200'}`}><Icon name="x-circle" size={14}/> Tidak Hadir</button>
+                                        </div>
+                                        <input type="hidden" id="in-status-val" value={rsvpInput.status} />
+                                        <button onClick={handleSendRSVP} className="w-full py-4 bg-[#716053] text-white rounded-full font-bold text-xs shadow-md active:scale-95 transition-all">Kirim</button>
+                                    </div>
+
+                                    {/* Wishes List Container */}
+                                    <div id="wishes-list" className="space-y-4 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
+                                        {wishes.map(w => (
+                                            <div key={w.id} className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100 flex gap-4 animate-in">
+                                                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-bold shrink-0">{w.name.charAt(0).toUpperCase()}</div>
+                                                <div className="flex-1">
+                                                    <p className="font-bold text-[11px] text-slate-800 mb-1">{w.name}</p>
+                                                    <p className="text-[10px] text-slate-500 leading-relaxed italic">"{w.wish}"</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="py-24 px-8 bg-slate-950 text-white text-center relative overflow-hidden">
+                                    <div className="py-16 border-t border-white/10 opacity-90 relative z-10 animate-in">
+                                        <h3 className="font-script text-4xl mb-8 text-theme-gold italic">Terima Kasih</h3>
+                                        <p className="text-[11px] text-slate-500 mb-16 px-6 italic font-light leading-relaxed">"{config.thankYou}"</p>
+                                        <div className="space-y-2">
+                                            <p className="text-xl font-serif tracking-widest uppercase italic">{config.groom.nickName} & {config.bride.nickName}</p>
+                                            <div className="w-8 h-[1px] bg-theme-gold/30 mx-auto my-8"></div>
+                                            <p className="text-[8px] text-slate-700 uppercase tracking-[1em] mt-12 font-bold">LinkzwireNode</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="h-8 w-full bg-slate-800 flex justify-center items-center relative z-10"><div className="w-12 h-1 bg-white/20 rounded-full"></div></div>
+                        </div>
+                        {showPreview && <button onClick={() => {setShowPreview(false); setIsOpened(false); setMusicStarted(false);}} className="fixed top-6 right-6 bg-slate-900 text-white p-4 rounded-full z-[70] shadow-2xl active:scale-90 transition-transform border border-slate-700"><Icon name="edit-3" size={24}/></button>}
+                    </section>
+                </div>
+            );
+        };
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
