@@ -1,44 +1,56 @@
-# WEDGENPROV1
-WedGen v1.1 Pro Edition adalah aplikasi berbasis web yang memungkinkan siapa saja untuk membangun undangan pernikahan digital premium secara mandiri. Dengan antarmuka editor real-time yang canggih, Anda dapat merancang, menyesuaikan, dan merilis undangan pernikahan yang elegan hanya dalam hitungan menit.
 
-Fitur Utama
 
-Dashboard Editor Real-Time
-Pengguna dapat merubah seluruh informasi undangan mulai dari data mempelai, jadwal acara, hingga galeri foto secara langsung melalui panel editor. Setiap perubahan akan langsung tercermin pada simulator perangkat seluler di sisi kanan layar.
+# WedGen v1.1 Pro - Premium Digital Invitation Builder
+<img width="1273" height="611" alt="image" src="https://github.com/user-attachments/assets/dfaa0a66-dcd7-4e78-b364-e583e31a9223" />
 
-Kustomisasi Navigasi & Label
-Berbeda dengan template standar, aplikasi ini memiliki fitur "Edit Menu" yang memungkinkan pengguna mengganti nama label navigasi (misal: merubah "HADIAH" menjadi "KADO DIGITAL") sesuai dengan preferensi bahasa atau gaya komunikasi mereka.
+WedGen v1.1 Pro adalah aplikasi pembuat undangan digital (web-based) yang elegan, responsif, dan interaktif. Proyek ini dirancang khusus untuk memudahkan pembuatan undangan pernikahan dengan fitur kustomisasi penuh tanpa perlu keahlian coding yang mendalam.
 
-Integrasi Musik YouTube
-Dilengkapi dengan formulir input tautan YouTube. Musik akan diputar secara otomatis (auto-play) segera setelah tamu undangan menekan tombol "BUKA UNDANGAN", menciptakan suasana yang lebih personal dan mendalam.
+## ✨ Fitur Utama
 
-Sistem Galeri & Hadiah Dinamis
-Mendukung pengelolaan foto galeri dalam jumlah banyak dan manajemen berbagai jenis rekening bank atau dompet digital untuk fitur hadiah/amplop digital.
+- **Premium L01 Theme**: Desain bersih dan mewah dengan nuansa Beige/Cream serta dekorasi floral watercolor.
+- **Real-time RSVP & Ucapan (MQTT)**: Menggunakan protokol MQTT (HiveMQ Broker) sehingga ucapan dari tamu muncul secara instan di layar tanpa perlu refresh halaman.
+- **Dynamic Guest Name**: Personalisasi nama tamu secara otomatis melalui URL parameter (`?to=Nama+Tamu`).
+- **Guest Link Generator**: Dashboard khusus untuk membuat dan menyalin link undangan unik untuk setiap tamu secara otomatis.
+- **YouTube Music Integration**: Musik latar yang dapat dikustomisasi dan diputar otomatis saat undangan dibuka.
+- **Full Live Editor**: Ubah profil mempelai, jadwal acara, lokasi (Google Maps), galeri foto, hingga informasi hadiah (wedding gift) secara langsung.
+- **Standalone Export**: Hasil undangan dapat diekspor menjadi satu file HTML utuh yang siap dideploy ke GitHub Pages atau hosting lainnya.
 
-Animasi & Transisi Premium
-Mengadopsi gaya transisi halus (fade-in, zoom-in, dan slide-out). Layar sampul (cover) memiliki animasi keluar ke arah atas yang memberikan kesan membuka pintu menuju isi undangan.
+## 🛠️ Teknologi yang Digunakan
 
-Desain Estetika (Tema L01)
+- **HTML5 & CSS3** (Custom Animations & Glassmorphism)
+- **Tailwind CSS** (Styling Framework)
+- **JavaScript (Vanilla)** (Logic & DOM Manipulation)
+- **MQTT.js** (Protokol komunikasi real-time via WebSockets)
+- **HiveMQ Public Broker** (Infrastruktur pesan real-time)
+- **FontAwesome & Google Fonts** (Tipografi & Ikonografi)
 
-Aplikasi ini menggunakan referensi desain Invisimple L01 dengan karakteristik:
+## 🚀 Cara Penggunaan & Deployment
 
-Warna: Palet warna krem (Clean Beige) dan emas (Muted Gold).
+### 1. Menjalankan Secara Lokal
+Cukup buka file `index.html` di browser pilihan Anda (Chrome, Edge, atau Firefox).
 
-Tipografi: Kombinasi font Playfair Display (Klasik) dan Great Vibes (Tulisan tangan mewah).
+### 2. Deploy ke GitHub Pages (Gratis)
+1. Buat repositori baru di akun GitHub Anda.
+2. Upload file `index.html` ke repositori tersebut.
+3. Masuk ke tab **Settings** > **Pages**.
+4. Pada bagian **Build and deployment**, pilih branch `main` lalu klik **Save**.
+5. Tunggu 1-2 menit, dan undangan Anda akan aktif secara publik.
 
-Dekorasi: Menggunakan elemen floral watercolor (daun zaitun dan beri merah muda) di setiap sudut bagian penting.
+### 3. Cara Mengirim Undangan ke Tamu
+1. Buka link undangan yang sudah Anda deploy.
+2. Masuk ke tab **LINK TAMU** di sidebar editor.
+3. Masukkan nama tamu (Contoh: *Bapak Ahmad*).
+4. Klik **SALIN LINK LENGKAP**.
+5. Kirim link tersebut ke tamu melalui WhatsApp atau media sosial lainnya.
 
-Tekstur: Latar belakang memiliki tekstur halus untuk memberikan kesan premium seperti kertas fisik.
+## 📡 Monitoring RSVP via MQTT Explorer
+Jika Anda ingin memantau pesan masuk secara teknis melalui aplikasi **MQTT Explorer**:
+- **Host**: `broker.hivemq.com`
+- **Port**: `1883`
+- **Topic**: `linkzwire/wedding/bitterfly/v1/wishes` (atau sesuai konfigurasi di dashboard).
 
-Kemampuan Export Standalone
+## 📝 Lisensi
+Proyek ini dibuat untuk keperluan edukasi dan personal. Silakan dikembangkan lebih lanjut.
 
-Fitur terkuat dari WedGen v1.1 adalah kemampuannya untuk mengekspor seluruh konfigurasi menjadi satu file HTML tunggal. File hasil ekspor ini:
-
-Bisa dibagikan langsung melalui WhatsApp atau media sosial.
-
-Tidak memerlukan database tambahan karena semua data sudah tertanam (hardcoded) di dalamnya.
-
-Tetap memiliki fungsi animasi, musik, dan fitur salin rekening yang utuh.
-
-Pengembang: LinkzwireNode
-Versi: 1.1 Pro Edition
+---
+**Developed with ❤️ by LinkzwireNode**
